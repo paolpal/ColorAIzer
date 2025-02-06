@@ -1,5 +1,6 @@
 from torch import nn
 import torch
+import torchvision.transforms.functional as TF
 from tqdm import tqdm
 
 from imageset import ImageDataset
@@ -54,13 +55,13 @@ class Coloraizer(nn.Module):
 		bottleneck = self.bottleneck(enc4)
 		
 		dec4 = self.dec4(bottleneck)
-		dec4 = dec4 + enc4  
+		dec4 = dec4 + TF.center_crop(enc4, dec4.shape[2:])
 		dec3 = self.dec3(dec4)
-		dec3 = dec3 + enc3
+		dec3 = dec3 + TF.center_crop(enc3, dec3.shape[2:])
 		dec2 = self.dec2(dec3)
-		dec2 = dec2 + enc2
+		dec2 = dec2 + TF.center_crop(enc2, dec2.shape[2:])
 		dec1 = self.dec1(dec2)
-		dec1 = dec1 + enc1
+		dec1 = dec1 + TF.center_crop(enc1, dec1.shape[2:])
 		
 		dec0 = self.final_up(dec1)
 		output = self.final_layer(dec0)
@@ -110,7 +111,8 @@ class Coloraizer(nn.Module):
 			self.train()
 			train_loss = 0
 			
-			for L, AB, mask in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs} (train)"):
+			batches = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs} (train)")
+			for i, (L, AB, mask) in enumerate(batches):
 				L, AB = L.to(self.device), AB.to(self.device)
 				optim.zero_grad()
 				output = self(L)  # Predizione dei canali AB
@@ -119,6 +121,9 @@ class Coloraizer(nn.Module):
 				torch.nn.utils.clip_grad_norm_(self.parameters(), 1)
 				optim.step()
 				train_loss += loss.item()
+				batches.set_postfix(
+                    loss=train_loss / (i + 1), lr=optim.param_groups[0]["lr"]
+				)
 			
 			train_loss /= len(train_loader)
 			history["train"].append(train_loss)
