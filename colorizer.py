@@ -78,8 +78,6 @@ class Coloraizer(nn.Module):
 		return coloraizer
 	
 	def loss_fn(self, output: torch.Tensor, expected: torch.Tensor, mask: torch.Tensor):
-		print(output.shape)
-		print(expected.shape)
 		mse = (output - expected) ** 2
 		masked_mse = mse * mask  
 		return masked_mse.sum() / mask.sum()  
@@ -93,11 +91,11 @@ class Coloraizer(nn.Module):
 		bs = 8
 		train_loader = torch.utils.data.DataLoader(
 			dataset=train, batch_size=bs, collate_fn=ImageDataset.collate_fn, num_workers=4,
-			sampler=torch.utils.data.RandomSampler(train, replacement=True, num_samples=bs * 100)
+			sampler=torch.utils.data.RandomSampler(train, replacement=True, num_samples=bs * 1)
 		)
 		valid_loader = torch.utils.data.DataLoader(
 			dataset=valid, batch_size=bs, collate_fn=ImageDataset.collate_fn, num_workers=4,
-			sampler=torch.utils.data.RandomSampler(valid, replacement=True, num_samples=bs * 50)
+			sampler=torch.utils.data.RandomSampler(valid, replacement=True, num_samples=bs * 2)
 		)
 
 		best_loss = float("inf")
@@ -131,11 +129,15 @@ class Coloraizer(nn.Module):
 			self.eval()
 			valid_loss = 0
 			with torch.no_grad():
-				for L, AB in tqdm(valid_loader, desc=f"Epoch {epoch + 1}/{epochs} (valid)"):
+				batches = tqdm(valid_loader, desc=f"Epoch {epoch + 1}/{epochs} (valid)")
+				for i, (L, AB, mask) in enumerate(batches):
 					L, AB = L.to(self.device), AB.to(self.device)
 					output = self(L)
-					loss = self.loss_fn(output, AB)
+					loss = self.loss_fn(output, AB, mask)
 					valid_loss += loss.item()
+					batches.set_postfix(
+						loss=valid_loss / (i + 1)
+					)
 			
 			valid_loss /= len(valid_loader)
 			history["valid"].append(valid_loss)
@@ -161,7 +163,7 @@ if __name__ == "__main__":
 	train = ImageDataset.load_train()
 	valid = ImageDataset.load_valid()
 	coloraizer = Coloraizer()
-	history = coloraizer.fit(train, valid=valid, epochs=100)
+	history = coloraizer.fit(train, valid=valid, epochs=1)
 	coloraizer.save("data/coloraizer.pt")
 	if history is not None:
 		plt.subplot(2, 1, 1)
