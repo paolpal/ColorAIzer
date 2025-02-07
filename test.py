@@ -1,5 +1,6 @@
 import torch
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import torchvision.transforms.functional as TF
 import cv2
 import numpy as np
@@ -53,18 +54,41 @@ lab_pred = cv2.merge([L_np, A_np, B_np])
 rgb_pred = cv2.cvtColor(lab_pred, cv2.COLOR_LAB2RGB)
 
 # Visualizzazione
-fig, axes = plt.subplots(1, 3, figsize=(12, 4))
 
-axes[0].imshow(L_np, cmap="gray")
-axes[0].set_title("Bianco e Nero")
-axes[0].axis("off")
+fig = plt.figure(figsize=(12, 8))
+gs = gridspec.GridSpec(2, 1)  # Dividiamo in 2 sezioni verticali
 
-axes[1].imshow(rgb_pred)  # Clipping per evitare valori fuori range
-axes[1].set_title("Ricolorata")
-axes[1].axis("off")
+# Prima riga: 3 colonne
+gs_top = gs[0].subgridspec(1, 3)
 
-axes[2].imshow(original)
-axes[2].set_title("Originale")
-axes[2].axis("off")
+ax1 = fig.add_subplot(gs_top[0])
+ax1.imshow(L_np, cmap="gray")
+ax1.set_title("L")
+ax1.axis("off")
 
+ax2 = fig.add_subplot(gs_top[1])
+ax2.imshow(A_np, cmap="coolwarm")
+ax2.set_title("A")
+ax2.axis("off")
+
+ax3 = fig.add_subplot(gs_top[2])
+ax3.imshow(B_np, cmap="coolwarm")
+ax3.set_title("B")
+ax3.axis("off")
+
+# Seconda riga: 2 colonne
+gs_bottom = gs[1].subgridspec(1, 2)
+
+ax4 = fig.add_subplot(gs_bottom[0])
+ax4.imshow(rgb_pred)
+ax4.set_title("Ricolorata")
+ax4.axis("off")
+
+ax5 = fig.add_subplot(gs_bottom[1])
+ax5.imshow(original)
+ax5.set_title("Originale")
+ax5.axis("off")
+
+plt.tight_layout()
 plt.show()
+
