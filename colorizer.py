@@ -91,11 +91,11 @@ class Coloraizer(nn.Module):
 		bs = 8
 		train_loader = torch.utils.data.DataLoader(
 			dataset=train, batch_size=bs, collate_fn=ImageDataset.collate_fn, num_workers=4,
-			sampler=torch.utils.data.RandomSampler(train, replacement=True, num_samples=bs * 1)
+			sampler=torch.utils.data.RandomSampler(train, replacement=True, num_samples=bs * 100)
 		)
 		valid_loader = torch.utils.data.DataLoader(
 			dataset=valid, batch_size=bs, collate_fn=ImageDataset.collate_fn, num_workers=4,
-			sampler=torch.utils.data.RandomSampler(valid, replacement=True, num_samples=bs * 2)
+            sampler=torch.utils.data.RandomSampler(valid, replacement=True, num_samples=bs * 50)
 		)
 
 		best_loss = float("inf")

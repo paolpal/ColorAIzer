@@ -142,6 +142,7 @@ if __name__=="__main__":
     # Passo 1: Scarica il dataset di addestramento
     print("Loading dataset...")
     validset = ImageDataset.download("valid")
+    trainset = ImageDataset.download("train")
     dataset = ImageDataset.load_train()
 
     # Passo 2: Carica un batch di immagini
