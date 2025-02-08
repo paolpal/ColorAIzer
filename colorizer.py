@@ -16,6 +16,8 @@ class Coloraizer(nn.Module):
 		self.enc4 = self.conv_block(256, 512) # output: [N, 512, H/16, W/16]
 		
 		# Bottleneck
+		# Sostituisci con un transformer, e 
+		# l'input testuale può esseere usato come condizionamento per ricolorare l'immagine
 		self.bottleneck = self.conv_block(512, 1024) # output: [N, 1024, H/32, W/32]
 		
 		# Decoder (Espansione)
@@ -141,6 +143,7 @@ class Coloraizer(nn.Module):
 			
 			valid_loss /= len(valid_loader)
 			history["valid"].append(valid_loss)
+			
 			lr_scheduler.step(valid_loss)
 			history["lr"].append(optim.param_groups[0]["lr"])
 			
