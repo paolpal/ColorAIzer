@@ -113,6 +113,8 @@ class Coloraizer(nn.Module):
 			
 			batches = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs} (train)")
 			for i, (L, AB, mask) in enumerate(batches):
+				print(L.device)  # Stampa il dispositivo del tensore di input
+				print(next(self.parameters()).device)  # Stampa il dispositivo dei pesi del modello
 				L, AB = L.to(self.device), AB.to(self.device)
 				optim.zero_grad()
 				output = self(L)  # Predizione dei canali AB
@@ -166,7 +168,7 @@ if __name__ == "__main__":
 	train = ImageDataset.load_train()
 	valid = ImageDataset.load_valid()
 	coloraizer = Coloraizer()
-	history = coloraizer.fit(train, valid=valid, epochs=1)
+	history = coloraizer.fit(train, valid=valid, epochs=100)
 	coloraizer.save("data/coloraizer.pt")
 	if history is not None:
 		plt.subplot(2, 1, 1)
