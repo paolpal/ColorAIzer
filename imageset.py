@@ -1,5 +1,6 @@
 import zipfile
 from matplotlib import pyplot as plt
+import matplotlib.gridspec as gridspec
 import numpy as np
 import requests
 from torch.utils.data import Dataset
@@ -169,29 +170,41 @@ if __name__=="__main__":
     lab_image = cv2.merge([L_np, A_np, B_np])
     rgb_image = cv2.cvtColor(lab_image, cv2.COLOR_LAB2RGB)
 
-    # Visualizzo i canali
-    fig, axes = plt.subplots(1, 5, figsize=(15, 5))
+    fig = plt.figure(figsize=(15, 5))
+    gs = gridspec.GridSpec(2, 1)  # Dividiamo in 2 sezioni verticali
 
-    axes[0].imshow(L_np, cmap="gray")
-    axes[0].set_title("L Channel (Luminosity)")
-    axes[0].axis('off')
+    # Prima riga: 3 colonne
+    gs_top = gs[0].subgridspec(1, 3)
 
-    axes[1].imshow(A_np, cmap="coolwarm")  # Canale A
-    axes[1].set_title("A Channel")
-    axes[1].axis('off')
+    ax1 = fig.add_subplot(gs_top[0])
+    ax1.imshow(L_np, cmap="gray")
+    ax1.set_title("L Channel (Luminosity)")
+    ax1.axis("off")
 
-    axes[2].imshow(B_np, cmap="coolwarm")  # Canale B
-    axes[2].set_title("B Channel")
-    axes[2].axis('off')
+    ax2 = fig.add_subplot(gs_top[1])
+    ax2.imshow(A_np, cmap="coolwarm")
+    ax2.set_title("A Channel")
+    ax2.axis("off")
 
-    axes[3].imshow(rgb_image)
-    axes[3].set_title("Rebuilt RGB Image")
-    axes[3].axis("off")
+    ax3 = fig.add_subplot(gs_top[2])
+    ax3.imshow(B_np, cmap="coolwarm")
+    ax3.set_title("B Channel")
+    ax3.axis("off")
 
-    axes[4].imshow(original)
-    axes[4].set_title("Original RGB Image")
-    axes[4].axis("off")
+    # Seconda riga: 2 colonne
+    gs_bottom = gs[1].subgridspec(1, 2)
 
+    ax4 = fig.add_subplot(gs_bottom[0])
+    ax4.imshow(rgb_image)
+    ax4.set_title("Recolored")
+    ax4.axis("off")
+
+    ax5 = fig.add_subplot(gs_bottom[1])
+    ax5.imshow(original)
+    ax5.set_title("Original")
+    ax5.axis("off")
+
+    plt.tight_layout()
     plt.show()
 
     # Passo 4: Verifica la lunghezza del dataset
