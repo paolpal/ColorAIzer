@@ -163,8 +163,6 @@ class Coloraizer(nn.Module):
 			sampler=torch.utils.data.RandomSampler(train, replacement=True, num_samples=bs * 100)
 		)
 		valid_loader = torch.utils.data.DataLoader(
-			dataset=valid, batch_size=bs, collate_fn=ImageDataset.collate_fn, num_workers=4,
-			sampler=torch.utils.data.RandomSampler(valid, replacement=True, num_samples=bs * 50)
 			dataset=valid, batch_size=bs, collate_fn=ImageDataset.collate_fn,
 			sampler=torch.utils.data.RandomSampler(valid, replacement=True, num_samples=bs * 50)
 		)
@@ -192,7 +190,6 @@ class Coloraizer(nn.Module):
 				optim.step()
 				train_loss += loss.item()
 				batches.set_postfix(
-					loss=train_loss / (i + 1), lr=optim.param_groups[0]["lr"]
 					loss=train_loss / (i + 1), lr=optim.param_groups[0]["lr"]
 				)
 			
