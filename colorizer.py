@@ -1,6 +1,7 @@
 from torch import nn
 import torch
 import torchvision.transforms.functional as TF
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from imageset import ImageDataset
@@ -10,26 +11,23 @@ class Coloraizer(nn.Module):
 		super().__init__()
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 		# Encoder (Contrazione)
-		self.enc1 = self.conv_block(1, 64)    # output: [N, 64, H/2, W/2]
-		self.enc2 = self.conv_block(64, 128)  # output: [N, 128, H/4, W/4]
-		self.enc3 = self.conv_block(128, 256) # output: [N, 256, H/8, W/8]
-		self.enc4 = self.conv_block(256, 512) # output: [N, 512, H/16, W/16]
+		self.enc1 = self.conv_block(1, 32)    # output: [N, 32, H/2, W/2]
+		self.enc2 = self.conv_block(32, 64)  # output: [N, 64, H/4, W/4]
 		
 		# Bottleneck
 		# Sostituisci con un transformer, e 
 		# l'input testuale può esseere usato come condizionamento per ricolorare l'immagine
-		self.bottleneck = self.conv_block(512, 1024) # output: [N, 1024, H/32, W/32]
+		self.bottleneck = self.conv_block(64, 128) # output: [N, 128, H/8, W/8]
 		
 		# Decoder (Espansione)
-		self.dec4 = self.up_conv(1024, 512)   # output: [N, 512, H/16, W/16]
-		self.dec3 = self.up_conv(512, 256)    # output: [N, 256, H/8, W/8]
-		self.dec2 = self.up_conv(256, 128)    # output: [N, 128, H/4, W/4]
-		self.dec1 = self.up_conv(128, 64)     # output: [N, 64, H/2, W/2]
+		self.dec2 = self.up_conv(128, 64)    # output: [N, 64, H/4, W/4]
+		self.dec1 = self.up_conv(64, 32)     # output: [N, 32, H/2, W/2]
 		
-		self.final_up = nn.ConvTranspose2d(64, 64, kernel_size=2, stride=2)  # da [N, 64, H/2, W/2] a [N, 64, H, W]
-		
+		self.final_up = nn.ConvTranspose2d(32, 32, kernel_size=2, stride=2)  # da [N, 32, H/2, W/2] a [N, 32, H, W]
 		# Output: 2 canali (A e B dello spazio LAB)
-		self.final_layer = nn.Conv2d(64, 2, kernel_size=1)  
+		self.final_layer = nn.Conv2d(32, 2, kernel_size=1) 
+
+		self.to(self.device) 
 
 	def conv_block(self, in_channels, out_channels):
 		return nn.Sequential(
@@ -49,25 +47,41 @@ class Coloraizer(nn.Module):
 		)
 	
 	def forward(self, x):
-		enc1 = self.enc1(x)
-		enc2 = self.enc2(enc1)
-		enc3 = self.enc3(enc2)
-		enc4 = self.enc4(enc3)
+		#print(f"{x.shape=}")
 		
-		bottleneck = self.bottleneck(enc4)
+		# Encoder
+		enc1_out = self.enc1(x)
+		#print(f"{enc1_out.shape=}")
+		enc2_out = self.enc2(enc1_out)
+		#print(f"{enc2_out.shape=}")
 		
-		dec4 = self.dec4(bottleneck)
-		dec4 = dec4 + TF.center_crop(enc4, dec4.shape[2:])
-		dec3 = self.dec3(dec4)
-		dec3 = dec3 + TF.center_crop(enc3, dec3.shape[2:])
-		dec2 = self.dec2(dec3)
-		dec2 = dec2 + TF.center_crop(enc2, dec2.shape[2:])
-		dec1 = self.dec1(dec2)
-		dec1 = dec1 + TF.center_crop(enc1, dec1.shape[2:])
+		# Bottleneck
+		bottleneck_out = self.bottleneck(enc2_out)
+		#print(f"{bottleneck_out.shape=}")
 		
-		dec0 = self.final_up(dec1)
-		output = self.final_layer(dec0)
+		# Decoder - Step 2
+		dec2_out_raw = self.dec2(bottleneck_out)  # Raw output from the decoder
+		dec2_out_upsampled = F.interpolate(dec2_out_raw, size=enc2_out.shape[2:], mode='bilinear', align_corners=False)  # Upsampled output
+		dec2_out = dec2_out_upsampled + enc2_out  # Added to encoder output
+		#print(f"{dec2_out.shape=}")
+		
+		# Decoder - Step 3
+		dec1_out_raw = self.dec1(dec2_out)  # Raw output from the decoder
+		dec1_out_upsampled = F.interpolate(dec1_out_raw, size=enc1_out.shape[2:], mode='bilinear', align_corners=False)  # Upsampled output
+		dec1_out = dec1_out_upsampled + enc1_out  # Added to encoder output
+		#print(f"{dec1_out.shape=}")
+		
+		# Final upsampling
+		dec0_out_raw = self.final_up(dec1_out)  # Raw output from the final upconv layer
+		dec0_out = F.interpolate(dec0_out_raw, size=x.shape[2:], mode='bilinear', align_corners=False)  # Upsampled to original size
+		#print(f"{dec0_out.shape=}")
+		
+		# Final output
+		output = self.final_layer(dec0_out)
+		#print(f"{output.shape=}")
+		
 		return output
+
 	
 	def save(self, path: str):
 		torch.save(self.state_dict(), path)
@@ -80,24 +94,30 @@ class Coloraizer(nn.Module):
 		return coloraizer
 	
 	def loss_fn(self, output: torch.Tensor, expected: torch.Tensor, mask: torch.Tensor):
+		mask = mask.to(self.device)
+		#print(f"{output.shape=}")
+		#print(f"{expected.shape=}")
+		#print(f"{mask.shape=}")
+
 		mse = (output - expected) ** 2
 		masked_mse = mse * mask  
-		return masked_mse.sum() / mask.sum()  
+		loss = masked_mse.sum() / mask.sum()  
+		return loss  
 
 	
 	def fit(self, train: ImageDataset, valid: ImageDataset, epochs: int):
-		optim = torch.optim.Adam(self.parameters(), lr=5e-5)
+		optim = torch.optim.Adam(self.parameters(), lr=1e-4)
 		lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, patience=5, factor=0.5, threshold=0.01)
 		history = {"train": [], "valid": [], "lr": []}
 		
-		bs = 8
+		bs = 4
 		train_loader = torch.utils.data.DataLoader(
 			dataset=train, batch_size=bs, collate_fn=ImageDataset.collate_fn, num_workers=4,
 			sampler=torch.utils.data.RandomSampler(train, replacement=True, num_samples=bs * 100)
 		)
 		valid_loader = torch.utils.data.DataLoader(
 			dataset=valid, batch_size=bs, collate_fn=ImageDataset.collate_fn, num_workers=4,
-            sampler=torch.utils.data.RandomSampler(valid, replacement=True, num_samples=bs * 50)
+			sampler=torch.utils.data.RandomSampler(valid, replacement=True, num_samples=bs * 50)
 		)
 
 		best_loss = float("inf")
@@ -113,18 +133,16 @@ class Coloraizer(nn.Module):
 			
 			batches = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs} (train)")
 			for i, (L, AB, mask) in enumerate(batches):
-				print(L.device)  # Stampa il dispositivo del tensore di input
-				print(next(self.parameters()).device)  # Stampa il dispositivo dei pesi del modello
 				L, AB = L.to(self.device), AB.to(self.device)
 				optim.zero_grad()
 				output = self(L)  # Predizione dei canali AB
 				loss = self.loss_fn(output, AB, mask)
 				loss.backward()
-				torch.nn.utils.clip_grad_norm_(self.parameters(), 1)
+				#torch.nn.utils.clip_grad_norm_(self.parameters(), 1)
 				optim.step()
 				train_loss += loss.item()
 				batches.set_postfix(
-                    loss=train_loss / (i + 1), lr=optim.param_groups[0]["lr"]
+					loss=train_loss / (i + 1), lr=optim.param_groups[0]["lr"]
 				)
 			
 			train_loss /= len(train_loader)
