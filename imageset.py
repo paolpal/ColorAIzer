@@ -108,36 +108,31 @@ class ImageDataset(Dataset):
         L = lab_image[0:1, :, :]  # Canale L (luminosità)
         AB = lab_image[1:3, :, :]  # Canali a/b (crominanza)
 
+        # Normalizza
+        L = (L / 50.0) - 1  # Normalizza L in [-1,1]
+        AB = AB / 128.0  # Normalizza a,b in [-1,1]
+
         return L, AB , image_hwc
     
     @staticmethod
     def collate_fn(batch: list):
         L_list, AB_list, sizes = zip(*[(L, AB, L.shape[1:]) for (L, AB, _) in batch])
-        
-        # Trova la dimensione massima nel batch
-        max_h = max(h for h, _ in sizes)
-        max_w = max(w for _, w in sizes)
 
-        def pad_image(img, target_h, target_w):
-            h, w = img.shape[1:]
-            pad_h = (target_h - h) // 2
-            pad_w = (target_w - w) // 2
-            return torch.nn.functional.pad(img, (pad_w, target_w - w - pad_w, pad_h, target_h - h - pad_h))
+        # Trova la dimensione minima nel batch
+        min_h = min(h for h, _ in sizes)
+        min_w = min(w for _, w in sizes)
 
-        # Applica padding simmetrico
-        L_padded = torch.stack([pad_image(img, max_h, max_w) for img in L_list])
-        AB_padded = torch.stack([pad_image(img, max_h, max_w) for img in AB_list])
+        def center_crop(img, target_h, target_w):
+            _, h, w = img.shape
+            start_h = (h - target_h) // 2
+            start_w = (w - target_w) // 2
+            return img[:, start_h:start_h + target_h, start_w:start_w + target_w]
 
-        # Crea una mask binaria (1 = pixel validi, 0 = padding)
-        masks = torch.zeros((len(batch), 1, max_h, max_w), dtype=torch.bool)
-        for i, (h, w) in enumerate(sizes):
-            masks[i, :, (max_h - h) // 2 : (max_h + h) // 2, (max_w - w) // 2 : (max_w + w) // 2] = 1
+        # Applica center crop
+        L_cropped = torch.stack([center_crop(img, min_h, min_w) for img in L_list])
+        AB_cropped = torch.stack([center_crop(img, min_h, min_w) for img in AB_list])
 
-        return L_padded, AB_padded, masks
-
-
-
-    
+        return L_cropped, AB_cropped
 
 if __name__=="__main__":
     # Passo 1: Scarica il dataset di addestramento
@@ -150,6 +145,9 @@ if __name__=="__main__":
     print("Loading a batch of images...")
     sample_idx = 0  # Cambia per provare un indice diverso
     L, AB , original = dataset[sample_idx]
+
+    L = (L + 1) * 50.0
+    AB = AB * 128.0
 
     # Passo 3: Visualizza L, A, B separatamente
     print("Visualizing L and AB channels...")
