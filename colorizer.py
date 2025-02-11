@@ -84,7 +84,7 @@ class Coloraizer(nn.Module):
 			path, map_location=coloraizer.device, weights_only=True))
 		return coloraizer
 	
-	def loss_fn(pred, orig):
+	def loss_fn(self, pred, orig):
 		return F.mse_loss(pred,orig) # F.l1_loss(pred, orig)
 
 	def fit(self, train: ImageDataset, valid: ImageDataset, epochs: int):
@@ -120,7 +120,7 @@ class Coloraizer(nn.Module):
 				output = self(L)  # Predizione dei canali AB
 				loss = self.loss_fn(output, AB)
 				loss.backward()
-				#torch.nn.utils.clip_grad_norm_(self.parameters(), 1)
+				torch.nn.utils.clip_grad_norm_(self.parameters(), 1)
 				optim.step()
 				train_loss += loss.item()
 				batches.set_postfix(
